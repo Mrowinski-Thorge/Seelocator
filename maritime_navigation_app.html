@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maritime Navigation</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a1929;
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #map {
+            height: 100vh;
+            width: 100vw;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: linear-gradient(180deg, rgba(10, 25, 41, 0.95) 0%, rgba(10, 25, 41, 0.7) 100%);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .zoom-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .zoom-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+        
+        .zoom-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .position-display {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 14px;
+        }
+        
+        .coord-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+        
+        .coord-label {
+            font-weight: 600;
+            color: #64b5f6;
+        }
+        
+        .coord-value {
+            font-family: 'Courier New', monospace;
+            color: #e8f5e8;
+        }
+        
+        .bottom-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: linear-gradient(0deg, rgba(10, 25, 41, 0.95) 0%, rgba(10, 25, 41, 0.7) 100%);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            padding: 0 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .info-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            min-width: 120px;
+        }
+        
+        .info-label {
+            font-size: 12px;
+            color: #90caf9;
+            font-weight: 500;
+        }
+        
+        .info-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .info-unit {
+            font-size: 10px;
+            color: #b3e5fc;
+        }
+        
+        .position-marker {
+            width: 20px;
+            height: 20px;
+            background: #ff4444;
+            border: 3px solid white;
+            border-radius: 50%;
+            position: relative;
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.6);
+        }
+        
+        .position-marker::after {
+            content: '';
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 68, 68, 0.2);
+            border-radius: 50%;
+            top: -10px;
+            left: -10px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+        
+        .status-indicator {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            background: rgba(76, 175, 80, 0.9);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+        
+        .compass {
+            position: absolute;
+            top: 70px;
+            left: 20px;
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .compass-needle {
+            width: 2px;
+            height: 30px;
+            background: linear-gradient(to top, #ff4444, #ffffff);
+            border-radius: 1px;
+            transform-origin: bottom center;
+            transition: transform 0.5s ease;
+        }
+        
+        .compass-text {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: #90caf9;
+            font-weight: 500;
+        }
+        
+        /* Leaflet Controls anpassen */
+        .leaflet-control-container {
+            display: none;
+        }
+        
+        .leaflet-popup-content-wrapper {
+            background: rgba(10, 25, 41, 0.95);
+            color: white;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .leaflet-popup-content {
+            color: white;
+            font-size: 12px;
+        }
+        
+        .leaflet-popup-tip {
+            background: rgba(10, 25, 41, 0.95);
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="top-bar">
+        <div class="zoom-controls">
+            <button class="zoom-btn" id="zoom-in">+</button>
+            <button class="zoom-btn" id="zoom-out">−</button>
+        </div>
+        
+        <div class="position-display">
+            <div class="coord-group">
+                <span class="coord-label">LAT</span>
+                <span class="coord-value" id="current-lat">--°--'--"</span>
+            </div>
+            <div class="coord-group">
+                <span class="coord-label">LON</span>
+                <span class="coord-value" id="current-lon">--°--'--"</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="status-indicator">
+        <div class="status-dot"></div>
+        GPS AKTIV
+    </div>
+    
+    <div class="compass">
+        <div class="compass-needle" id="compass-needle"></div>
+        <div class="compass-text" id="compass-text">N</div>
+    </div>
+    
+    <div class="bottom-bar">
+        <div class="info-card">
+            <div class="info-label">GESCHWINDIGKEIT</div>
+            <div class="info-value" id="speed">0.0</div>
+            <div class="info-unit">kn</div>
+        </div>
+        
+        <div class="info-card">
+            <div class="info-label">KURS</div>
+            <div class="info-value" id="heading">000°</div>
+            <div class="info-unit">COG</div>
+        </div>
+        
+        <div class="info-card">
+            <div class="info-label">TIEFE</div>
+            <div class="info-value" id="depth">--</div>
+            <div class="info-unit">m</div>
+        </div>
+        
+        <div class="info-card">
+            <div class="info-label">ZEIT</div>
+            <div class="info-value" id="time">--:--</div>
+            <div class="info-unit">UTC</div>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Globale Variablen
+        let map;
+        let currentPosition = null;
+        let userMarker = null;
+        let watchId = null;
+        let lastPosition = null;
+        let currentSpeed = 0;
+        let currentHeading = 0;
+        
+        // Koordinaten in Grad/Minuten/Sekunden konvertieren
+        function toDMS(coordinate, isLongitude) {
+            const absolute = Math.abs(coordinate);
+            const degrees = Math.floor(absolute);
+            const minutes = Math.floor((absolute - degrees) * 60);
+            const seconds = Math.floor(((absolute - degrees) * 60 - minutes) * 60);
+            
+            const direction = coordinate >= 0 ? (isLongitude ? 'E' : 'N') : (isLongitude ? 'W' : 'S');
+            return `${degrees.toString().padStart(2, '0')}°${minutes.toString().padStart(2, '0')}'${seconds.toString().padStart(2, '0')}"${direction}`;
+        }
+        
+        // Karte initialisieren
+        function initMap() {
+            // Karte mit OpenSeaMap Tiles erstellen
+            map = L.map('map', {
+                center: [54.0, 10.0], // Nordsee/Ostsee Bereich
+                zoom: 10,
+                zoomControl: false,
+                attributionControl: false,
+                scrollWheelZoom: true,
+                doubleClickZoom: false,
+                touchZoom: true,
+                dragging: true
+            });
+            
+            // OpenSeaMap Layer hinzufügen
+            const openSeaMapLayer = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenSeaMap contributors',
+                maxZoom: 18
+            });
+            
+            // Basis OpenStreetMap Layer
+            const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                maxZoom: 18
+            });
+            
+            baseLayer.addTo(map);
+            openSeaMapLayer.addTo(map);
+            
+            // Zoom Controls
+            document.getElementById('zoom-in').addEventListener('click', () => {
+                map.zoomIn();
+            });
+            
+            document.getElementById('zoom-out').addEventListener('click', () => {
+                map.zoomOut();
+            });
+            
+            // Karte auf Positionsklick zentrieren
+            map.on('click', function(e) {
+                if (currentPosition) {
+                    map.flyTo([currentPosition.lat, currentPosition.lng], map.getZoom());
+                }
+            });
+        }
+        
+        // GPS Position verfolgen
+        function startLocationTracking() {
+            if (!navigator.geolocation) {
+                alert('Geolocation wird von diesem Browser nicht unterstützt.');
+                return;
+            }
+            
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 0
+            };
+            
+            watchId = navigator.geolocation.watchPosition(
+                updatePosition,
+                handleLocationError,
+                options
+            );
+        }
+        
+        // Position aktualisieren
+        function updatePosition(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const accuracy = position.coords.accuracy;
+            const timestamp = position.timestamp;
+            
+            // Geschwindigkeit berechnen
+            if (lastPosition) {
+                const timeDiff = (timestamp - lastPosition.timestamp) / 1000; // in Sekunden
+                const distance = calculateDistance(
+                    lastPosition.lat, lastPosition.lng,
+                    lat, lng
+                );
+                
+                currentSpeed = (distance / timeDiff) * 1.94384; // m/s zu Knoten
+                currentHeading = calculateBearing(lastPosition.lat, lastPosition.lng, lat, lng);
+            }
+            
+            currentPosition = { lat, lng, accuracy, timestamp };
+            lastPosition = currentPosition;
+            
+            // Marker aktualisieren
+            if (userMarker) {
+                userMarker.setLatLng([lat, lng]);
+            } else {
+                const icon = L.divIcon({
+                    html: '<div class="position-marker"></div>',
+                    iconSize: [20, 20],
+                    className: 'custom-marker'
+                });
+                
+                userMarker = L.marker([lat, lng], { icon }).addTo(map);
+                map.setView([lat, lng], 12);
+            }
+            
+            // UI aktualisieren
+            updateUI();
+        }
+        
+        // Fehlerbehandlung für GPS
+        function handleLocationError(error) {
+            console.error('GPS Error:', error);
+            // Simuliere Position für Demo (Nordsee)
+            const demoPosition = {
+                coords: {
+                    latitude: 54.0 + Math.random() * 0.01,
+                    longitude: 10.0 + Math.random() * 0.01,
+                    accuracy: 10
+                },
+                timestamp: Date.now()
+            };
+            updatePosition(demoPosition);
+        }
+        
+        // Distanz zwischen zwei Punkten berechnen (Haversine Formel)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000; // Erdradius in Metern
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                     Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+        
+        // Peilung berechnen
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
+            const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
+                     Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
+            const bearing = Math.atan2(y, x);
+            return (bearing * 180 / Math.PI + 360) % 360;
+        }
+        
+        // UI Elements aktualisieren
+        function updateUI() {
+            if (currentPosition) {
+                // Koordinaten aktualisieren
+                document.getElementById('current-lat').textContent = toDMS(currentPosition.lat, false);
+                document.getElementById('current-lon').textContent = toDMS(currentPosition.lng, true);
+                
+                // Geschwindigkeit aktualisieren
+                document.getElementById('speed').textContent = currentSpeed.toFixed(1);
+                
+                // Kurs aktualisieren
+                document.getElementById('heading').textContent = currentHeading.toFixed(0).padStart(3, '0') + '°';
+                
+                // Kompass aktualisieren
+                const needle = document.getElementById('compass-needle');
+                needle.style.transform = `rotate(${currentHeading}deg)`;
+                
+                // Tiefe (simuliert)
+                const depth = (Math.random() * 50 + 10).toFixed(1);
+                document.getElementById('depth').textContent = depth;
+            }
+            
+            // Zeit aktualisieren
+            const now = new Date();
+            const timeString = now.toUTCString().split(' ')[4].substring(0, 5);
+            document.getElementById('time').textContent = timeString;
+        }
+        
+        // Initialisierung
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            startLocationTracking();
+            
+            // UI jede Sekunde aktualisieren
+            setInterval(updateUI, 1000);
+        });
+        
+        // Scrolling verhindern
+        document.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+        
+        // Kontext-Menu verhindern
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
+    </script>
+</body>
+</html>
